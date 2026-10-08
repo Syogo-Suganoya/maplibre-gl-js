@@ -3,6 +3,7 @@
 - _...Add new stuff here..._
 
 ### 🐞 Bug fixes
+- Fix video sources not playing in iOS Safari ([#5517](https://github.com/maplibre/maplibre-gl-js/issues/5517))
 - _...Add new stuff here..._
 
 ## 6.15.0
