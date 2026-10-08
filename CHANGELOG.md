@@ -3,6 +3,7 @@
 - _...Add new stuff here..._
 
 ### 🐞 Bug fixes
+- Fix `setPadding` stopping a running camera animation; the padding is now applied once the animation ends ([#6765](https://github.com/maplibre/maplibre-gl-js/issues/6765))
 - _...Add new stuff here..._
 
 ## 6.15.0
