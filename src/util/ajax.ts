@@ -322,9 +322,16 @@ export function sameOrigin(inComingUrl: string): boolean {
     return urlObj.protocol === locationObj.protocol && urlObj.host === locationObj.host;
 }
 
+/**
+ * Creates a muted video element that plays inline, loading the first of `urls` the browser can play.
+ *
+ * iOS Safari refuses `play()` with a `NotAllowedError` on a video that is not marked to play inline,
+ * even when it is muted.
+ */
 export const getVideo = (urls: string[]): Promise<HTMLVideoElement> => {
     const video: HTMLVideoElement = window.document.createElement('video');
     video.muted = true;
+    video.playsInline = true;
     return new Promise((resolve) => {
         video.onloadstart = () => {
             resolve(video);
