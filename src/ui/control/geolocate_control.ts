@@ -39,6 +39,14 @@ export type GeolocateControlOptions = {
      */
     showUserLocation?: boolean;
     /**
+     * If `true`, an arrow on the user location dot points in the direction the user is moving, as reported in
+     * [`GeolocationCoordinates.heading`](https://developer.mozilla.org/en-US/docs/Web/API/GeolocationCoordinates/heading).
+     * Devices report a heading only while moving, so the arrow is hidden while the user stands still.
+     * Has no effect when `showUserLocation` is `false`.
+     * @defaultValue false
+     */
+    showUserHeading?: boolean;
+    /**
      * If `true` then map updates from the user's location may also change the map zoom level based on the location update accuracy. If `false` then the map zoom level will not change.
      * Has no effect when `trackUserLocation` is `false`.
      * @defaultValue true
@@ -58,6 +66,7 @@ const defaultOptions: GeolocateControlOptions = {
     trackUserLocation: false,
     showAccuracyCircle: true,
     showUserLocation: true,
+    showUserHeading: false,
     zoomToUserAccuracy: true
 };
 
@@ -574,6 +583,7 @@ export class GeolocateControl extends Evented<GeolocateControlEventType> impleme
             const center = new LngLat(position.coords.longitude, position.coords.latitude);
             this._accuracyCircleMarker.setLngLat(center).addTo(this._map);
             this._userLocationDotMarker.setLngLat(center).addTo(this._map);
+            this._updateHeading(position.coords.heading);
             this._accuracy = position.coords.accuracy;
             this._updateCircleRadiusIfNeeded();
         } else {
@@ -581,6 +591,18 @@ export class GeolocateControl extends Evented<GeolocateControlEventType> impleme
             this._accuracyCircleMarker.remove();
         }
     };
+
+    /**
+     * Points the heading arrow of the user location dot at `heading`, in degrees clockwise from true north, or hides
+     * it when the device reports no heading: `null` when it cannot tell, `NaN` when the user is not moving.
+     */
+    _updateHeading(heading: number | null): void {
+        if (!this.options.showUserHeading) return;
+
+        const hasHeading = heading !== null && !isNaN(heading);
+        this._dotElement.classList.toggle('maplibregl-user-location-show-heading', hasHeading);
+        if (hasHeading) this._userLocationDotMarker.setRotation(heading);
+    }
 
     _updateCircleRadiusIfNeeded(): void {
         const userLocation = this._userLocationDotMarker.getLngLat();
@@ -699,8 +721,14 @@ export class GeolocateControl extends Evented<GeolocateControlEventType> impleme
         // when showUserLocation is enabled, keep the Geolocate button disabled until the device location marker is setup on the map
         if (this.options.showUserLocation) {
             this._dotElement = DOM.create('div', 'maplibregl-user-location-dot');
+            if (this.options.showUserHeading) {
+                DOM.create('div', 'maplibregl-user-location-heading', this._dotElement);
+            }
 
-            this._userLocationDotMarker = new Marker({element: this._dotElement});
+            this._userLocationDotMarker = new Marker({
+                element: this._dotElement,
+                rotationAlignment: this.options.showUserHeading ? 'map' : 'auto'
+            });
 
             this._circleElement = DOM.create('div', 'maplibregl-user-location-accuracy-circle');
             this._accuracyCircleMarker = new Marker({element: this._circleElement, pitchAlignment: 'map'});
