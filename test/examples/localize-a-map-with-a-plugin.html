@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Localize a map with a plugin</title>
+    <meta property="og:description" content="Use the Diplomat plugin to label the map in the user's preferred language without knowing the style's layers in advance." />
+    <meta property="og:category" content="Internationalization" />
+    <meta property="og:order" content="2" />
+    <meta property="og:created" content="2026-10-08" />
+    <meta charset='utf-8'>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel='stylesheet' href='../../dist/maplibre-gl.css' />
+
+    <style>
+        body { margin: 0; padding: 0; }
+        html, body, #map { height: 100%; }
+    </style>
+</head>
+<body>
+<style>
+    #language {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        padding: 6px;
+        font-family: sans-serif;
+        font-size: 14px;
+    }
+</style>
+<div id="map"></div>
+<!-- cSpell:disable -->
+<select id="language" aria-label="Map language">
+    <option value="">Browser language</option>
+    <option value="en">English</option>
+    <option value="fr">Français</option>
+    <option value="de">Deutsch</option>
+    <option value="es">Español</option>
+    <option value="it">Italiano</option>
+    <option value="nl">Nederlands</option>
+    <option value="pl">Polski</option>
+    <option value="pt">Português</option>
+    <option value="uk">Українська</option>
+    <option value="el">Ελληνικά</option>
+</select>
+<!-- cSpell:enable -->
+<script type="module">
+    import * as maplibregl from '../../dist/maplibre-gl-dev.mjs';
+    import * as Diplomat from 'https://unpkg.com/@americana/diplomat@0.6.0/index.js';
+
+    const map = new maplibregl.Map({
+        container: 'map',
+        style: 'https://tiles.versatiles.org/assets/styles/colorful/style.json',
+        center: [10, 48],
+        zoom: 4
+    });
+
+    // VersaTiles follows the Shortbread schema, which stores localized names as `name_fr` rather than `name:fr`.
+    const options = {localizedNamePropertyFormat: 'name_$1'};
+
+    // Diplomat finds every layer that labels features by name and rewrites its `text-field`,
+    // falling back from the requested language to the local name. With no locales given,
+    // it uses the languages the user has set in the browser.
+    map.once('styledata', () => {
+        Diplomat.localizeStyle(map, Diplomat.getLocales(), options);
+    });
+
+    document.getElementById('language').addEventListener('change', (event) => {
+        const language = event.target.value;
+        Diplomat.localizeStyle(map, language ? [language] : Diplomat.getLocales(), options);
+    });
+</script>
+</body>
+</html>
