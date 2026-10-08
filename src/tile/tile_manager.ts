@@ -192,6 +192,13 @@ export class TileManager extends Evented<SourceEventType> {
         if (this.transform) this.update(this.transform, this.terrain);
     }
 
+    /**
+     * Loads the tile and records the outcome on it.
+     *
+     * A tile that fails settles as `errored` and asks the map for a frame. The map fires `load` and `idle` only
+     * from a frame, and nothing else schedules one when the last outstanding request fails after the last frame
+     * was drawn.
+     */
     async _loadTile(tile: Tile, id: string, state: TileState, hadData: boolean): Promise<void> {
         try {
             const result = await this._source.loadTile(tile) as LoadTileResult;
@@ -205,6 +212,7 @@ export class TileManager extends Evented<SourceEventType> {
                 // continue to try loading parent/children tiles if a tile doesn't exist (404)
                 this.update(this.transform, this.terrain);
             }
+            this.map?.triggerRepaint();
         }
     }
 
