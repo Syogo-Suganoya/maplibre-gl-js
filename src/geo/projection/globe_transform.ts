@@ -312,8 +312,15 @@ export class GlobeTransform implements ITransform {
         return lerp(this._mercatorTransform.getPixelScale(), this._verticalPerspectiveTransform.getPixelScale(), this._globeness);
     }
 
+    /**
+     * Returns the factor that `circle-pitch-alignment: 'map'` circles, heatmap kernels and pitched text are scaled by.
+     *
+     * The shaders scale only the globe-side position by this factor and then blend it with the flat position
+     * by globeness, so this is the value of the projection being rendered: blending it by globeness as well
+     * would apply the transition twice.
+     */
     public getCircleRadiusCorrection(): number {
-        return lerp(this._mercatorTransform.getCircleRadiusCorrection(), this._verticalPerspectiveTransform.getCircleRadiusCorrection(), this._globeness);
+        return this.currentTransform.getCircleRadiusCorrection();
     }
 
     public getPitchedTextCorrection(textAnchorX: number, textAnchorY: number, tileID: UnwrappedTileID): number {

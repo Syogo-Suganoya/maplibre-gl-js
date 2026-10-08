@@ -770,6 +770,26 @@ describe('GlobeTransform', () => {
         });
     });
 
+    describe('getCircleRadiusCorrection', () => {
+        test('returns the vertical perspective correction unblended during the transition to mercator', () => {
+            const globe = createGlobeTransform();
+            globe.resize(512, 512);
+            globe.setZoom(11.5);
+            globe.setCenter(new LngLat(10, 60));
+
+            const vp = createVerticalPerspectiveTransform();
+            vp.resize(512, 512);
+            vp.setZoom(11.5);
+            vp.setCenter(new LngLat(10, 60));
+
+            globe.setTransitionState(0.5);
+            expect(globe.getCircleRadiusCorrection()).toBeCloseTo(vp.getCircleRadiusCorrection(), 10);
+
+            globe.setTransitionState(0);
+            expect(globe.getCircleRadiusCorrection()).toBe(1);
+        });
+    });
+
     describe('recalculateZoomAndCenter', () => {
         test('adjusts elevation, zoom and center to the terrain under the rendered projection', () => {
             const terrain = createTerrain();
