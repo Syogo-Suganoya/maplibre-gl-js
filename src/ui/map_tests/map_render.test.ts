@@ -86,6 +86,34 @@ test('no render before style loaded', async () => {
     expect(loaded).toBeTruthy();
 });
 
+test('fires load and idle when the last tile request fails with a network error after the last render', async () => {
+    const style = createStyle();
+    style.sources.raster = {
+        type: 'raster',
+        tiles: ['http://example.com/{z}/{x}/{y}.png']
+    };
+    style.layers.push({id: 'raster', type: 'raster', source: 'raster', paint: {'raster-fade-duration': 0}});
+    const map = createMap({style});
+    map.on('error', () => {});
+    const load = vi.fn();
+    const idle = vi.fn();
+    map.on('load', load);
+    map.on('idle', idle);
+    const render = vi.fn();
+    map.on('render', render);
+    await sleep(100);
+    render.mockClear();
+    await sleep(100);
+    expect(render).not.toHaveBeenCalled();
+    expect(server.requests.length).toBeGreaterThan(0);
+
+    for (const request of server.requests) request.error();
+    await sleep(100);
+
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(idle).toHaveBeenCalledTimes(1);
+});
+
 test('redraw', async () => {
     const map = createMap();
 
