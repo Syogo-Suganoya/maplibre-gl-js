@@ -4,6 +4,7 @@ import {
     getJSON,
     type AJAXError,
     getReferrer,
+    getVideo,
     sameOrigin
 } from './ajax.ts';
 import {isAbortError} from './abort_error.ts';
@@ -243,6 +244,18 @@ describe('ajax', () => {
 
         // edge case
         expect(sameOrigin('://foo')).toBe(true);
+    });
+
+    test('getVideo creates a muted video that plays inline', async () => {
+        const createElement = vi.spyOn(window.document, 'createElement');
+        const promise = getVideo(['https://example.com/video.mp4']);
+        const video = createElement.mock.results[0].value as HTMLVideoElement;
+        video.dispatchEvent(new Event('loadstart'));
+
+        await expect(promise).resolves.toBe(video);
+        expect(video.muted).toBe(true);
+        expect(video.playsInline).toBe(true);
+        createElement.mockRestore();
     });
 
     describe('requests parameters', () => {
