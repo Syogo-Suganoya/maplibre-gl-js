@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MapLibre しくみ図鑑</title>
+<meta name="description" content="MapLibre GL JS がタイルを集め、裏方で読み解き、GPU で地図を描くまでを、絵と図で中学生向けに説明する図鑑。">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=JetBrains+Mono:wght@400;600&family=Zen+Kaku+Gothic+New:wght@700;900&display=swap">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f8fa; --surface: #ffffff; --ink: #16212c; --ink-soft: #4d5b69;
+  --line: #d5dde4; --line-strong: #93a3b3;
+  --water: #1d6aac; --water-wash: #e2edf7;
+  --park: #2c7a4c; --park-wash: #e3f1e8;
+  --label: #b8620d; --label-wash: #fbeedc;
+  --f-display: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --f-body: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+  --f-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+
+svg .rt { font: 700 15px var(--f-body); letter-spacing: .04em; }
+svg .bt { font: 700 15px var(--f-body); fill: var(--ink); }
+svg .bs { font-size: 12px; fill: var(--ink-soft); }
+svg .al { font: 500 12.5px var(--f-body); fill: var(--ink-soft); }
+svg .ab { font: 700 13px var(--f-body); fill: var(--ink); }
+svg .sn { font: 700 13px var(--f-mono); fill: var(--bg); }
+svg .m { font-family: var(--f-mono); }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 17px; line-height: 1.85; }
+h1, h2, h3, h4 { font-family: var(--f-display); line-height: 1.35; text-wrap: balance; margin: 0; }
+p { margin: 0; }
+code, .m { font-family: var(--f-mono); font-size: .92em; }
+:not(pre) > code { background: var(--water-wash); color: var(--ink); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+a { color: var(--water); }
+:focus-visible { outline: 2px solid var(--water); outline-offset: 2px; }
+
+/* 上の帯：サイト名と2ページの切り替え */
+.top { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+.top-in { max-width: 1280px; margin: 0 auto; padding: 10px 20px; display: flex; align-items: center; gap: 18px; }
+.brand { font-family: var(--f-display); font-weight: 900; font-size: 17px; color: var(--ink); text-decoration: none; display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.brand i { width: 22px; height: 22px; border-radius: 6px; background: linear-gradient(135deg, var(--water) 0 50%, var(--park) 50% 100%); display: inline-block; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs a { text-decoration: none; color: var(--ink-soft); font-size: 14px; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
+.tabs a[aria-current="page"] { background: var(--water); color: var(--surface); }
+.tabs a:not([aria-current]):hover { color: var(--water); }
+.unofficial { margin-left: auto; font-size: 12px; font-weight: 700; color: var(--label); border: 1px solid var(--label); border-radius: 999px; padding: 1px 10px; white-space: nowrap; }
+
+/* 左の目次と本文 */
+.layout { max-width: 1280px; margin: 0 auto; padding: 0 20px; display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 48px; }
+.toc { position: sticky; top: 64px; align-self: start; padding: 32px 0; max-height: calc(100vh - 64px); overflow-y: auto; }
+.toc b { display: block; font-size: 12px; letter-spacing: .1em; color: var(--ink-soft); margin-bottom: 8px; }
+.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.toc a { display: flex; gap: 10px; text-decoration: none; color: var(--ink-soft); font-size: 14.5px; line-height: 1.5; padding: 5px 10px; border-radius: 8px; }
+.toc a span { font-family: var(--f-mono); color: var(--water); font-size: 12px; padding-top: 1px; }
+.toc a:hover { background: var(--surface); color: var(--ink); }
+.toc a.on { background: var(--water-wash); color: var(--ink); font-weight: 700; }
+main { min-width: 0; padding: 32px 0 96px; display: grid; gap: 72px; }
+
+.notice { border: 1px solid var(--label); background: var(--label-wash); border-radius: 12px; padding: 14px 18px; font-size: 14px; }
+.notice b { color: var(--label); display: block; margin-bottom: 2px; }
+.hero { display: grid; gap: 18px; padding-top: 8px; }
+.hero h1 { font-size: clamp(34px, 6vw, 58px); font-weight: 900; line-height: 1.2; }
+.hero h1 em { font-style: normal; color: var(--water); display: block; }
+.hero .lead { font-size: 17px; max-width: 64ch; }
+.hero .meta { font-size: 13px; color: var(--ink-soft); }
+.hero .meta code { font-size: 12.5px; }
+
+section { display: grid; gap: 20px; min-width: 0; }
+.sh { display: grid; gap: 4px; }
+.sh .no { font-family: var(--f-mono); font-size: 14px; font-weight: 600; color: var(--water); letter-spacing: .08em; }
+.sh h2 { font-size: clamp(25px, 3.6vw, 34px); font-weight: 900; }
+section > p, .prose p { max-width: 70ch; }
+.prose { display: grid; gap: 14px; }
+h3.sub { font-size: 19px; font-weight: 900; margin-top: 8px; }
+.note { font-size: 15px; color: var(--ink-soft); max-width: 80ch; }
+
+/* 汎用の箱 */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
+.callout { border-left: 4px solid var(--park); background: var(--park-wash); border-radius: 0 12px 12px 0; padding: 14px 18px; display: grid; gap: 4px; }
+.callout > b { color: var(--park); font-family: var(--f-display); }
+.callout.warm { border-color: var(--label); background: var(--label-wash); }
+.callout.warm > b { color: var(--label); }
+.callout.blue { border-color: var(--water); background: var(--water-wash); }
+.callout.blue > b { color: var(--water); }
+.canvas { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; overflow-x: auto; }
+.canvas svg { display: block; width: 100%; min-width: 700px; height: auto; }
+.canvas.narrow svg { min-width: 520px; }
+pre.code { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 18px; overflow-x: auto; font: 13.5px/1.7 var(--f-mono); }
+pre.code .c { color: var(--ink-soft); }
+pre.code .k { color: var(--water); font-weight: 600; }
+pre.code .s { color: var(--park); }
+
+.split { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+.split .card h3 { font-size: 18px; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.split .card h3 small { font-family: var(--f-mono); font-size: 12px; color: var(--ink-soft); font-weight: 400; }
+.split .card ul { margin: 10px 0 0; padding-left: 1.2em; display: grid; gap: 4px; font-size: 15px; }
+.card.t-main { border-top: 4px solid var(--water); }
+.card.t-worker { border-top: 4px solid var(--park); }
+.card.t-gpu { border-top: 4px solid var(--label); }
+
+/* 縦の流れ図。質問の箱は「はい」の枝を右に出す */
+.flow { display: grid; gap: 0; max-width: 820px; }
+.fn { position: relative; background: var(--surface); border: 1.5px solid var(--line-strong); border-radius: 12px; padding: 10px 16px; display: grid; gap: 2px; }
+.fn b { font-size: 15.5px; }
+.fn span { font-size: 13.5px; color: var(--ink-soft); line-height: 1.6; }
+.fn.start { border-color: var(--water); background: var(--water-wash); }
+.fn.end { border-color: var(--park); background: var(--park-wash); }
+.fn.stop { border-color: var(--label); background: var(--label-wash); }
+.fn.worker { border-color: var(--park); }
+.fn.gpu { border-color: var(--label); }
+.fn .who { position: absolute; top: -9px; right: 12px; font: 700 11px var(--f-body); padding: 0 8px; border-radius: 999px; background: var(--surface); border: 1px solid currentColor; }
+.fn .who.w { color: var(--park); } .fn .who.m { color: var(--water); } .fn .who.g { color: var(--label); }
+.fa { height: 30px; margin-left: 32px; border-left: 2px solid var(--line-strong); position: relative; font-size: 12.5px; color: var(--ink-soft); }
+.fa::after { content: ""; position: absolute; left: -6px; bottom: 0; border: 5px solid transparent; border-top: 7px solid var(--line-strong); border-bottom: 0; }
+.fa em { position: absolute; left: 12px; top: 4px; font-style: normal; font-weight: 700; }
+.fq { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 18px; align-items: start; }
+.fq .q { background: var(--surface); border: 1.5px dashed var(--water); border-radius: 12px; padding: 10px 16px; font-weight: 700; font-size: 15px; position: relative; }
+.fq .q::before { content: "?"; position: absolute; left: -11px; top: 50%; transform: translateY(-50%); width: 20px; height: 20px; border-radius: 50%; background: var(--water); color: var(--surface); font: 700 13px/20px var(--f-mono); text-align: center; }
+.fq .side { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; }
+.fq .side > i { font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--ink-soft); white-space: nowrap; }
+.fq .side > i::after { content: " →"; }
+.fq .side .fn { padding: 8px 14px; }
+
+/* 番号つきの手順 */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; counter-reset: st; }
+.steps li { counter-increment: st; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; align-items: start; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.steps li::before { content: counter(st); width: 30px; height: 30px; border-radius: 50%; background: var(--water); color: var(--surface); font: 700 14px/30px var(--f-mono); text-align: center; }
+.steps li.w::before { background: var(--park); }
+.steps li.g::before { background: var(--label); }
+.steps li b { display: block; }
+.steps li span { font-size: 14px; color: var(--ink-soft); }
+
+/* 横に並ぶ段階 */
+.pipe { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.pipe > div { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--park); border-radius: 12px; padding: 12px 14px; display: grid; gap: 4px; align-content: start; }
+.pipe > div b { font-size: 15px; }
+.pipe > div span { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+.pipe > div.m { border-top-color: var(--water); }
+.pipe > div.g { border-top-color: var(--label); }
+
+/* フォルダの木 */
+.tree { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 20px; font-size: 14px; overflow-x: auto; }
+.tree .tr { display: grid; grid-template-columns: minmax(220px, max-content) minmax(0, 1fr); gap: 16px; padding: 3px 0; align-items: baseline; }
+.tree .tr > code, .tree .tr > .p { background: none; padding: 0; white-space: pre; font-size: 13.5px; }
+.tree .tr > span { color: var(--ink-soft); font-size: 13.5px; }
+.tree .root { font-family: var(--f-mono); font-weight: 600; color: var(--water); }
+.tree + .tree { margin-top: 0; }
+
+/* 道具のチップ */
+.chipset { display: grid; gap: 14px; }
+.chipset > div { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; align-items: baseline; }
+.chipset > div > b { font-size: 14px; color: var(--ink-soft); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips span { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 999px; padding: 1px 12px; font-size: 13.5px; }
+.chips span small { color: var(--ink-soft); font-size: 12px; margin-left: 4px; }
+
+/* 守りの箱 */
+.guard { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.guard .card { display: grid; gap: 6px; align-content: start; }
+.guard .card h4 { font-size: 16px; }
+.guard .card .what { font-size: 12.5px; color: var(--label); font-weight: 700; }
+.guard .card .what::before { content: "防ぐもの　"; color: var(--ink-soft); font-weight: 400; }
+.guard .card p { font-size: 14px; color: var(--ink-soft); }
+.nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.nums > div { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 16px; }
+.nums b { display: block; font: 600 28px/1.3 var(--f-mono); color: var(--water); }
+.nums span { font-size: 13px; color: var(--ink-soft); }
+.ci { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 13.5px; }
+.ci span { background: var(--surface); border: 1px solid var(--line-strong); border-radius: 8px; padding: 3px 10px; }
+.ci i { font-style: normal; color: var(--ink-soft); }
+
+/* 用語集 */
+dl.gloss { display: grid; grid-template-columns: minmax(130px, max-content) minmax(0, 1fr); gap: 0; margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+dl.gloss dt, dl.gloss dd { margin: 0; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+dl.gloss dt { font-weight: 700; }
+dl.gloss dd { color: var(--ink-soft); font-size: 14.5px; }
+dl.gloss dt:nth-last-of-type(1), dl.gloss dd:last-child { border-bottom: 0; }
+
+/* 表のようなカード（データの形） */
+.er { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+.er .ent { background: var(--surface); border: 1px solid var(--line); border-top: 4px solid var(--water); border-radius: 12px; overflow: hidden; }
+.er .ent.c2 { border-top-color: var(--park); } .er .ent.c3 { border-top-color: var(--label); } .er .ent.c4 { border-top-color: var(--line-strong); }
+.er .ent h4 { font: 600 14.5px var(--f-mono); padding: 10px 14px 0; }
+.er .ent p { font-size: 12.5px; color: var(--ink-soft); padding: 0 14px 8px; line-height: 1.55; }
+.er .ent ul { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.er .ent li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 6px; padding: 4px 14px; font: 12.5px/1.6 var(--f-mono); border-bottom: 1px dashed var(--line); }
+.er .ent li:last-child { border-bottom: 0; }
+.er .ent li i { font: 700 10px/18px var(--f-body); font-style: normal; text-align: center; border-radius: 4px; align-self: center; }
+.er .ent li i.k { background: var(--water-wash); color: var(--water); }
+.er .ent li i.r { background: var(--park-wash); color: var(--park); }
+.er .ent li i.a { background: var(--label-wash); color: var(--label); }
+.er .ent li span { color: var(--ink-soft); font-family: var(--f-body); font-size: 11.5px; margin-left: 6px; }
+.keys { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-soft); }
+.keys i { font: 700 10px/18px var(--f-body); font-style: normal; padding: 0 6px; border-radius: 4px; margin-right: 6px; display: inline-block; }
+
+
+/* 横向きのフローチャート。狭い画面では縦に並べる */
+.hf { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px 0; }
+.hf .hb { flex: 1 1 130px; min-width: 120px; background: var(--surface); border: 2px solid var(--water); border-radius: 14px; padding: 12px 12px; display: grid; gap: 4px; align-content: start; justify-items: center; text-align: center; }
+.hf .hb.w { border-color: var(--park); } .hf .hb.g { border-color: var(--label); } .hf .hb.x { border-color: var(--line-strong); }
+.hf .hb .e { font-size: 38px; line-height: 1.1; }
+.hf .hb b { font-size: 16.5px; line-height: 1.4; }
+.hf .hb span { font-size: 14px; color: var(--ink-soft); line-height: 1.5; }
+.hf .hb code { font-size: 12.5px; }
+.hf .ha { flex: 0 0 28px; display: grid; place-items: center; color: var(--line-strong); font-size: 24px; font-weight: 700; }
+.hf + .loop { margin-top: 10px; }
+.loop { display: flex; align-items: center; gap: 10px; color: var(--water); font-weight: 700; font-size: 16px; }
+.loop::before { content: "↻"; font-size: 26px; }
+
+/* スクリーンショット */
+.shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+figure.shot { margin: 0; display: grid; gap: 8px; }
+figure.shot img { width: 100%; height: auto; display: block; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 2px 10px rgba(22, 33, 44, .08); }
+figure.shot figcaption { font-size: 15px; font-weight: 700; }
+figure.shot figcaption small { display: block; font-weight: 400; color: var(--ink-soft); font-size: 13.5px; }
+
+/* フォルダなどのカード */
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.cards .cd { background: var(--surface); border: 1px solid var(--line); border-left: 5px solid var(--water); border-radius: 12px; padding: 10px 14px; display: grid; gap: 2px; align-content: start; }
+.cards .cd.w { border-left-color: var(--park); } .cards .cd.g { border-left-color: var(--label); } .cards .cd.x { border-left-color: var(--line-strong); }
+.cards .cd .nm { font: 600 15px var(--f-mono); display: flex; gap: 8px; align-items: center; }
+.cards .cd .nm .e { font-family: var(--f-body); font-size: 20px; }
+.cards .cd span { font-size: 14px; color: var(--ink-soft); line-height: 1.6; }
+.cards .cd .p { margin-left: -4px; }
+.cards .cd ul { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 0; }
+
+/* 表は枠の中でスクロールし、見出しの行を固定する */
+.tbl { max-height: 72vh; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.tbl th { position: sticky; top: 0; z-index: 2; background: var(--surface); box-shadow: inset 0 -2px 0 var(--line-strong); }
+@media (max-width: 640px) {
+  .hf { flex-direction: column; }
+  .hf .hb { flex: none; justify-items: start; text-align: left; grid-template-columns: auto 1fr; column-gap: 12px; }
+  .hf .hb .e { grid-row: span 3; font-size: 30px; }
+  .hf .ha { flex: none; height: 26px; transform: rotate(90deg); }
+}
+
+footer.foot { border-top: 1px solid var(--line); padding-top: 20px; font-size: 13px; color: var(--ink-soft); }
+
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .toc { position: static; max-height: none; padding: 20px 0 0; }
+  .toc ol { display: flex; flex-wrap: wrap; gap: 6px; }
+  .toc a { border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 12px; font-size: 13px; }
+  main { gap: 56px; }
+}
+@media (max-width: 640px) {
+  .top-in, .layout { padding-inline: 16px; }
+  .unofficial { display: none; }
+  .fq { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .fq .side { margin-left: 32px; }
+  .chipset > div { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .tree .tr { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 5px 0; }
+  dl.gloss { grid-template-columns: minmax(0, 1fr); }
+  dl.gloss dt { border-bottom: 0; padding-bottom: 0; }
+}
+
+body { font-size: 18px; }
+.lead2 { font-size: 20px; line-height: 1.7; max-width: 46ch; }
+.canvas.big svg { min-width: 640px; }
+.canvas.narrow svg { max-width: 680px; margin: 0 auto; }
+svg .k1 { font: 900 24px var(--f-display); fill: var(--ink); }
+svg .k2 { font: 700 19px var(--f-body); fill: var(--ink); }
+svg .k3 { font: 700 16px var(--f-body); fill: var(--ink-soft); }
+svg .k4 { font: 400 14.5px var(--f-body); fill: var(--ink-soft); }
+svg .cd { font: 500 17px var(--f-mono); fill: #e6edf3; white-space: pre; }
+svg .cd2 { font: 500 16px var(--f-mono); fill: var(--ink); white-space: pre; }
+svg .emo { font-size: 50px; }
+svg .emo2 { font-size: 40px; }
+svg .ab { font-size: 19px; } svg .al { font-size: 16px; }
+.split .card ul { font-size: 17px; }
+.split .card h3 { font-size: 20px; }
+.fn b { font-size: 18px; }
+.fn span { font-size: 15px; }
+.fq .q { font-size: 17px; }
+.fq .side .fn b { font-size: 16.5px; }
+.cards .cd .nm { font-family: var(--f-body); font-weight: 700; font-size: 16.5px; }
+.cards .cd span { font-size: 15px; }
+.chipset > div > b { font-size: 16px; }
+.chips span { font-size: 16px; padding: 3px 14px; }
+dl.gloss dt { font-size: 17px; } dl.gloss dd { font-size: 16px; }
+.nums span { font-size: 15px; }
+</style>
+</head>
+<body>
+<div class="top"><div class="top-in">
+  <a class="brand" href="how-it-works.html"><i aria-hidden="true"></i>MapLibre GL JS 解説</a>
+  <nav class="tabs" aria-label="資料"><a href="how-it-works.html" aria-current="page">しくみ図鑑</a><a href="code-map.html">コード逆引き</a></nav>
+  <span class="unofficial">非公式</span>
+</div></div>
+<div class="layout">
+<nav class="toc" aria-label="目次"><b>目次</b><ol><li><a href="#what"><span>01</span>何をするライブラリ？</a></li><li><a href="#overview"><span>02</span>全体の地図</a></li><li><a href="#roles"><span>03</span>プログラムの役割分担</a></li><li><a href="#first-frame"><span>04</span>地図が表示されるまで</a></li><li><a href="#tiles"><span>05</span>タイルと裏方の仕事</a></li><li><a href="#gpu"><span>06</span>GPU で描くしくみ</a></li><li><a href="#labels"><span>07</span>文字ラベルの席取りゲーム</a></li><li><a href="#camera"><span>08</span>動かす・丸くする・立てる</a></li><li><a href="#data"><span>09</span>データのつながり</a></li><li><a href="#tools"><span>10</span>使っている道具</a></li><li><a href="#guards"><span>11</span>ミスを防ぐしくみ</a></li><li><a href="#glossary"><span>12</span>用語集</a></li></ol></nav>
+<main>
+<div class="notice"><b>非公式の解説資料です</b>この資料は MapLibre の公式資料ではありません。オープンソースで公開されている <a href="https://github.com/maplibre/maplibre-gl-js">maplibre/maplibre-gl-js</a> のソースコードを、個人が読んでまとめたものです。内容の正確さは保証できず、最新のコードと違う場合があります。</div>
+<header class="hero"><h1>MapLibre GL JS の中身を<em>のぞいてみよう</em></h1>
+<p class="lead">指で動かせる地図は、どうやって画面に出ているのか。絵と図で見ていきます。</p>
+<p class="meta">main ブランチ（<code>4a9ee5bf7</code>、2026年10月8日）・バージョン 6.13.0 のコードをもとに作成。地図の画像は、このコードを手元でビルドして撮影したものです（地図データ © OpenStreetMap contributors、OpenFreeMap）</p></header>
+<section id="what"><div class="sh"><div class="no">01</div><h2>何をするライブラリ？</h2></div><p class="lead2">スマホの地図のように、指で動かせる地図を Web ページに出す<b>ライブラリ</b>（便利な関数の集まり）です。</p>
+<div class="canvas big"><svg viewBox="0 0 900 330" role="img" aria-label="数行のコードで地図が出る"><defs><marker id="a1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-soft)"/></marker></defs>
+<clipPath id="mapclip"><rect x="480" y="58" width="400" height="252"/></clipPath>
+<text x="185" y="32" text-anchor="middle" class="k2">あなたが書くのは これだけ</text>
+<rect x="20" y="50" width="330" height="230" rx="16" fill="#1f2a37"/>
+<circle cx="44" cy="72" r="6" fill="#f26b5b"/><circle cx="64" cy="72" r="6" fill="#f5c04a"/><circle cx="84" cy="72" r="6" fill="#5cc879"/>
+<text x="40" y="118" class="cd">new maplibregl.Map({</text>
+<text x="40" y="152" class="cd">  container: 'map',</text>
+<text x="40" y="186" class="cd">  style: 'style.json',</text>
+<text x="40" y="220" class="cd">  center: [139.77, 35.68],</text>
+<text x="40" y="254" class="cd">});</text>
+<path d="M368 165 L458 165" stroke="var(--ink-soft)" stroke-width="5" marker-end="url(#a1)"/>
+<text x="410" y="148" text-anchor="middle" class="k3">あとは</text>
+<text x="410" y="196" text-anchor="middle" class="k3">おまかせ</text>
+<rect x="480" y="30" width="400" height="280" rx="16" fill="var(--surface)" stroke="var(--line-strong)" stroke-width="2"/>
+<circle cx="502" cy="44" r="5" fill="var(--line-strong)"/><circle cx="520" cy="44" r="5" fill="var(--line-strong)"/><circle cx="538" cy="44" r="5" fill="var(--line-strong)"/>
+<g clip-path="url(#mapclip)">
+<rect x="480" y="58" width="400" height="252" fill="#f3efe6"/>
+<rect x="500" y="200" width="130" height="90" rx="24" fill="#cfe8c9"/>
+<path d="M470 130 C560 105 610 175 700 155 S840 95 890 115" stroke="#8cc1ea" stroke-width="22" fill="none"/>
+<rect x="650" y="70" width="34" height="26" fill="#d9d2c6"/><rect x="692" y="74" width="26" height="30" fill="#d9d2c6"/><rect x="760" y="185" width="40" height="28" fill="#d9d2c6"/><rect x="808" y="190" width="30" height="40" fill="#d9d2c6"/><rect x="560" y="80" width="40" height="30" fill="#d9d2c6"/>
+<path d="M480 280 L890 190" stroke="#f5b14a" stroke-width="10"/>
+<path d="M660 58 L725 320" stroke="#f5b14a" stroke-width="8"/>
+<path d="M480 175 L890 250" stroke="#ffffff" stroke-width="5"/>
+</g>
+<path d="M700 236 c-12 0 -20 -10 -20 -20 c0 -14 20 -32 20 -32 c0 0 20 18 20 32 c0 10 -8 20 -20 20z" fill="#e5533d"/>
+<circle cx="700" cy="214" r="7" fill="#fff"/>
+<text x="728" y="226" class="k2" stroke="#fff" stroke-width="5" paint-order="stroke">東京駅</text>
+<rect x="842" y="70" width="28" height="56" rx="6" fill="#fff" stroke="var(--line-strong)"/>
+<text x="856" y="94" text-anchor="middle" class="k2">+</text><text x="856" y="120" text-anchor="middle" class="k2">−</text>
+</svg></div>
+<div class="split">
+  <div class="card t-main"><h3>✍️ 使う人が書くこと</h3><ul><li>地図を出す場所</li><li>どんな色で描くか（スタイル）</li><li>最初に見せる場所</li></ul></div>
+  <div class="card t-worker"><h3>🤖 MapLibre がやること</h3><ul><li>地図のデータを集める</li><li>読み解いて形にする</li><li>1秒に最大60回描き直す</li><li>文字が重ならないように選ぶ</li></ul></div>
+</div>
+<h3 class="sub">同じデータでも、スタイルを変えると別の地図になる</h3>
+<div class="shots"><figure class="shot"><img src="img/tokyo.jpg" alt="スタイル「liberty」" loading="lazy" width="900" height="560"><figcaption>スタイル「liberty」<small>東京駅のまわり</small></figcaption></figure><figure class="shot"><img src="img/dark.jpg" alt="スタイル「dark」" loading="lazy" width="900" height="560"><figcaption>スタイル「dark」<small>同じタイルを、別の色で塗っただけ</small></figcaption></figure></div></section><section id="overview"><div class="sh"><div class="no">02</div><h2>全体の地図</h2></div><p class="lead2">仕事をするのは、ブラウザの中の<b>3人の係</b>です。</p>
+<div class="canvas big"><svg viewBox="0 0 900 450" role="img" aria-label="サーバーと、ブラウザの中の3つの係"><defs><marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-soft)"/></marker></defs>
+<g fill="#eaf1f8"><ellipse cx="450" cy="78" rx="210" ry="56"/><ellipse cx="350" cy="62" rx="90" ry="48"/><ellipse cx="545" cy="58" rx="100" ry="50"/></g>
+<text x="450" y="58" text-anchor="middle" class="k1">☁️ 地図のサーバー</text>
+<text x="450" y="100" text-anchor="middle" class="k3">📄 スタイル　🧩 タイル　🔤 フォント　🖼️ アイコン</text>
+<rect x="20" y="168" width="860" height="268" rx="18" fill="var(--surface)" stroke="var(--line-strong)" stroke-width="2"/>
+<rect x="20" y="168" width="860" height="34" rx="18" fill="#eef1f4"/>
+<circle cx="44" cy="185" r="6" fill="var(--line-strong)"/><circle cx="64" cy="185" r="6" fill="var(--line-strong)"/><circle cx="84" cy="185" r="6" fill="var(--line-strong)"/>
+<text x="110" y="191" class="k3">ブラウザ（スマホやパソコン）</text>
+<rect x="44" y="218" width="260" height="196" rx="16" fill="var(--water-wash)" stroke="var(--water)" stroke-width="2.5"/>
+<text x="174" y="276" text-anchor="middle" class="emo">🧑‍💼</text>
+<text x="174" y="314" text-anchor="middle" class="k1" fill="var(--water)">表の係</text>
+<text x="174" y="338" text-anchor="middle" class="k4">メインスレッド</text>
+<text x="174" y="372" text-anchor="middle" class="k3">操作を受ける</text>
+<text x="174" y="398" text-anchor="middle" class="k3">仕事を割りふる</text>
+<rect x="596" y="218" width="260" height="196" rx="16" fill="var(--park-wash)" stroke="var(--park)" stroke-width="2.5"/>
+<text x="726" y="276" text-anchor="middle" class="emo">👷</text>
+<text x="726" y="314" text-anchor="middle" class="k1" fill="var(--park)">裏方</text>
+<text x="726" y="338" text-anchor="middle" class="k4">Web Worker</text>
+<text x="726" y="372" text-anchor="middle" class="k3">タイルを読む</text>
+<text x="726" y="398" text-anchor="middle" class="k3">三角形に切る</text>
+<rect x="370" y="318" width="160" height="96" rx="16" fill="var(--label-wash)" stroke="var(--label)" stroke-width="2.5"/>
+<text x="412" y="380" text-anchor="middle" class="emo2">🎨</text>
+<text x="476" y="362" text-anchor="middle" class="k1" fill="var(--label)">GPU</text>
+<text x="476" y="390" text-anchor="middle" class="k3">絵を塗る</text>
+<path d="M306 240 L592 240" stroke="var(--ink-soft)" stroke-width="3" marker-end="url(#a2)"/>
+<text x="450" y="232" text-anchor="middle" class="k3">「タイルを用意して！」</text>
+<path d="M594 290 L308 290" stroke="var(--ink-soft)" stroke-width="3" marker-end="url(#a2)"/>
+<text x="450" y="282" text-anchor="middle" class="k3">「できたよ」</text>
+<path d="M306 366 L366 366" stroke="var(--label)" stroke-width="3" marker-end="url(#a2)"/>
+<text x="336" y="356" text-anchor="middle" class="k4">描いて</text>
+<path d="M330 118 L230 214" stroke="var(--water)" stroke-width="3" marker-end="url(#a2)"/>
+<text x="250" y="150" text-anchor="end" class="k4">スタイル・フォント</text>
+<path d="M570 118 L680 214" stroke="var(--park)" stroke-width="3" marker-end="url(#a2)"/>
+<text x="650" y="150" class="k4">タイル</text>
+</svg></div>
+<div class="cards"><div class="cd m"><div class="nm"><span class=e>🧑‍💼</span>表の係（メインスレッド）</div><span>画面と操作の担当。ここが重い計算で止まると、地図がカクカクする</span></div><div class="cd w"><div class="nm"><span class=e>👷</span>裏方（Web Worker）</div><span>画面にはさわれないが、表の係と同時に計算できる</span></div><div class="cd g"><div class="nm"><span class=e>🎨</span>GPU</div><span>三角形を何万個も同時に塗れる。WebGL2 で使う</span></div></div>
+<div class="callout blue"><b>💬 係どうしはメッセージで話す</b><p><code>{type: 'LT', data: …}</code> のような手紙を送り合います（<code>LT</code> = loadTile）。手紙の種類は23個です。</p></div></section><section id="roles"><div class="sh"><div class="no">03</div><h2>プログラムの役割分担</h2></div><p class="lead2">工場のラインのように、<b>左から右へ</b>仕事が流れます。</p>
+<div class="hf"><div class="hb m"><div class=e>🕹️</div><b>受付</b><span><code>ui/</code><br>new Map() など</span></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>📒</div><b>決まりを持つ</b><span><code>style/</code><br>色・太さ</span></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>📦</div><b>タイルを集める</b><span><code>source/</code> <code>tile/</code></span></div><div class="ha" aria-hidden="true">→</div><div class="hb w"><div class=e>✂️</div><b>形に切る</b><span><code>data/</code> <code>symbol/</code><br>裏方で</span></div><div class="ha" aria-hidden="true">→</div><div class="hb g"><div class=e>🖌️</div><b>塗る</b><span><code>render/</code> <code>webgl/</code></span></div></div>
+<h3 class="sub">📁 src/ のフォルダ</h3>
+<div class="cards"><div class="cd m"><div class="nm"><span class=e>🕹️</span>ui/</div><span>地図・カメラ・ボタン・指の操作</span></div><div class="cd m"><div class="nm"><span class=e>🌐</span>geo/</div><span>緯度経度、平らな地図と地球儀</span></div><div class="cd m"><div class="nm"><span class=e>📒</span>style/</div><span>スタイルとレイヤー</span></div><div class="cd m"><div class="nm"><span class=e>📦</span>source/</div><span>データの出どころ、裏方の入口</span></div><div class="cd m"><div class="nm"><span class=e>🧩</span>tile/</div><span>タイルの出し入れ</span></div><div class="cd w"><div class="nm"><span class=e>🔺</span>data/</div><span>三角形の配列（Bucket）</span></div><div class="cd w"><div class="nm"><span class=e>🔤</span>symbol/</div><span>文字の並べ方、重なりの判定</span></div><div class="cd g"><div class="nm"><span class=e>🖌️</span>render/</div><span>描く順番を決める</span></div><div class="cd g"><div class="nm"><span class=e>🎛️</span>webgl/</div><span>GPU とのやりとり</span></div><div class="cd g"><div class="nm"><span class=e>✨</span>shaders/</div><span>GPU で動くプログラム</span></div><div class="cd x"><div class="nm"><span class=e>🧰</span>util/</div><span>通信・メッセージなどの道具箱</span></div></div></section><section id="first-frame"><div class="sh"><div class="no">04</div><h2>地図が表示されるまで</h2></div><p class="lead2">地図を開いてから、絵が出るまでの順番です。</p>
+<div class="flow"><div class="fn start"><span class="who m">メイン</span><b>🗺️ new Map() を実行</b></div><div class="fa"></div><div class="fn "><span class="who m">メイン</span><b>📄 style.json をダウンロード</b></div><div class="fa"></div><div class="fn "><span class="who m">メイン</span><b>🔍 画面に入るタイルを選ぶ</b></div><div class="fa"></div><div class="fq"><div class="q">もう持っている？</div><div class="side"><i>はい</i><div class="fn end"><b>♻️ 使い回す</b></div></div></div><div class="fa"><em>いいえ</em></div><div class="fn worker"><span class="who w">ワーカー</span><b>👷 裏方に「用意して」</b><span>届くまでは1つ手前のズームのタイルで代用</span></div><div class="fa"></div><div class="fn "><span class="who m">メイン</span><b>🏷️ 文字ラベルを選ぶ</b></div><div class="fa"></div><div class="fn gpu"><span class="who g">GPU</span><b>🎨 GPU が描く</b></div><div class="fa"></div><div class="fq"><div class="q">まだ動いている？ 読み込み中？</div><div class="side"><i>はい</i><div class="fn "><b>↻ 次の画面で「タイルを選ぶ」から</b><span>1秒に最大60回</span></div></div></div><div class="fa"><em>いいえ</em></div><div class="fn end"><b>😴 &#x27;idle&#x27;（ひと休み）</b></div></div></section><section id="tiles"><div class="sh"><div class="no">05</div><h2>タイルと裏方の仕事</h2></div><p class="lead2">世界地図を正方形の<b>タイル</b>に切って、見ている所だけ取りに行きます。</p>
+<div class="canvas narrow"><svg viewBox="0 0 700 240" role="img" aria-label="ズームが1上がるとタイルは4倍"><rect x="30.0" y="30.0" width="160.0" height="160.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><text x="110.0" y="220" text-anchor="middle" class="ab">ズーム 0 は 1 枚</text><rect x="260.0" y="30.0" width="80.0" height="80.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="340.0" y="30.0" width="80.0" height="80.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="260.0" y="110.0" width="80.0" height="80.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="340.0" y="110.0" width="80.0" height="80.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><text x="340.0" y="220" text-anchor="middle" class="ab">ズーム 1 は 4 枚</text><rect x="490.0" y="30.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="530.0" y="30.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="570.0" y="30.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="610.0" y="30.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="490.0" y="70.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="530.0" y="70.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="570.0" y="70.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="610.0" y="70.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="490.0" y="110.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="530.0" y="110.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="570.0" y="110.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="610.0" y="110.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="490.0" y="150.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="530.0" y="150.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="570.0" y="150.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><rect x="610.0" y="150.0" width="40.0" height="40.0" fill="var(--water-wash)" stroke="var(--water)" stroke-width="1.5"/><text x="570.0" y="220" text-anchor="middle" class="ab">ズーム 2 は 16 枚</text></svg></div>
+<div class="shots"><figure class="shot"><img src="img/tiles.jpg" alt="赤い線がタイルの境目" loading="lazy" width="900" height="560"><figcaption>赤い線がタイルの境目<small>showTileBoundaries = true にすると見える。左上の数字は「ズーム/横/縦」のタイル番号</small></figcaption></figure></div>
+<h3 class="sub">🧩 タイルの中身は「絵」ではなく「座標」</h3>
+<div class="canvas big"><svg viewBox="0 0 900 350" role="img" aria-label="ベクタータイルの中身">
+<rect x="40" y="30" width="280" height="280" fill="#fbfaf7" stroke="var(--line-strong)" stroke-width="2"/><line x1="40" y1="30" x2="40" y2="310" stroke="var(--line)"/><line x1="40" y1="30" x2="320" y2="30" stroke="var(--line)"/><line x1="75" y1="30" x2="75" y2="310" stroke="var(--line)"/><line x1="40" y1="65" x2="320" y2="65" stroke="var(--line)"/><line x1="110" y1="30" x2="110" y2="310" stroke="var(--line)"/><line x1="40" y1="100" x2="320" y2="100" stroke="var(--line)"/><line x1="145" y1="30" x2="145" y2="310" stroke="var(--line)"/><line x1="40" y1="135" x2="320" y2="135" stroke="var(--line)"/><line x1="180" y1="30" x2="180" y2="310" stroke="var(--line)"/><line x1="40" y1="170" x2="320" y2="170" stroke="var(--line)"/><line x1="215" y1="30" x2="215" y2="310" stroke="var(--line)"/><line x1="40" y1="205" x2="320" y2="205" stroke="var(--line)"/><line x1="250" y1="30" x2="250" y2="310" stroke="var(--line)"/><line x1="40" y1="240" x2="320" y2="240" stroke="var(--line)"/><line x1="285" y1="30" x2="285" y2="310" stroke="var(--line)"/><line x1="40" y1="275" x2="320" y2="275" stroke="var(--line)"/><line x1="320" y1="30" x2="320" y2="310" stroke="var(--line)"/><line x1="40" y1="310" x2="320" y2="310" stroke="var(--line)"/>
+<polygon points="190,80 270,80 270,150 230,150 230,180 190,180" fill="#c9d6e6" stroke="var(--water)" stroke-width="3"/>
+<polyline points="40,250 120,220 200,240 320,190" fill="none" stroke="#f5b14a" stroke-width="8" stroke-linejoin="round"/>
+<circle cx="110" cy="110" r="11" fill="#e5533d"/>
+<text x="40" y="334" class="k4">0</text><text x="320" y="334" text-anchor="end" class="k4">8192</text>
+<text x="180" y="20" text-anchor="middle" class="k4">タイル1枚 = 8192 × 8192 のマス目</text>
+<g transform="translate(380,40)">
+<circle cx="22" cy="30" r="12" fill="#e5533d"/>
+<text x="56" y="28" class="k2">点</text><text x="56" y="54" class="k3">駅・お店・山頂</text>
+<polyline points="6,120 26,108 40,116" fill="none" stroke="#f5b14a" stroke-width="7"/>
+<text x="56" y="118" class="k2">線</text><text x="56" y="144" class="k3">道路・線路・川</text>
+<rect x="6" y="186" width="34" height="30" fill="#c9d6e6" stroke="var(--water)" stroke-width="2.5"/>
+<text x="56" y="206" class="k2">面</text><text x="56" y="232" class="k3">建物・公園・湖</text>
+<rect x="250" y="0" width="250" height="250" rx="12" fill="var(--surface)" stroke="var(--line)"/>
+<text x="266" y="30" class="k4">地物ごとに「属性」がつく</text>
+<text x="266" y="72" class="cd2">{</text>
+<text x="282" y="104" class="cd2">name: "東京駅",</text>
+<text x="282" y="136" class="cd2">class: "rail",</text>
+<text x="282" y="168" class="cd2">rank: 1</text>
+<text x="266" y="200" class="cd2">}</text>
+<text x="266" y="234" class="k4">スタイルはこれを見て色を決める</text>
+</g>
+</svg></div>
+<h3 class="sub">👷 裏方の仕事の順番</h3>
+<div class="hf"><div class="hb w"><div class=e>⬇️</div><b>ダウンロード</b><span>fetch</span></div><div class="ha" aria-hidden="true">→</div><div class="hb w"><div class=e>🔎</div><b>読み解く</b><span>MVT / MLT</span></div><div class="ha" aria-hidden="true">→</div><div class="hb w"><div class=e>🗂️</div><b>仕分ける</b><span>レイヤーごと</span></div><div class="ha" aria-hidden="true">→</div><div class="hb w"><div class=e>🔺</div><b>三角形に</b><span>Bucket</span></div><div class="ha" aria-hidden="true">→</div><div class="hb w"><div class=e>🔤</div><b>文字を並べる</b><span>フォントは表の係にもらう</span></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>📮</div><b>送り返す</b><span>コピーせずに渡す</span></div></div></section><section id="gpu"><div class="sh"><div class="no">06</div><h2>GPU で描くしくみ</h2></div><p class="lead2">GPU は<b>三角形</b>を塗るのが得意。だから形は全部、三角形に切ります。</p>
+<div class="canvas narrow"><svg viewBox="0 0 700 220" role="img" aria-label="形を三角形に分ける">
+<polygon points="90,40 200,70 190,180 70,190 30,110" fill="var(--water-wash)" stroke="var(--water)" stroke-width="2"/>
+<text x="115" y="212" text-anchor="middle" class="al">建物の形</text>
+<path d="M260 115 L330 115" stroke="var(--ink-soft)" stroke-width="2" marker-end="url(#k-ah2)"/>
+<g transform="translate(360,0)">
+<polygon points="90,40 200,70 190,180" fill="var(--label-wash)" stroke="var(--label)" stroke-width="2"/>
+<polygon points="90,40 190,180 70,190" fill="var(--park-wash)" stroke="var(--park)" stroke-width="2"/>
+<polygon points="90,40 70,190 30,110" fill="var(--water-wash)" stroke="var(--water)" stroke-width="2"/>
+<text x="115" y="212" text-anchor="middle" class="al">GPU が得意な三角形 3 つ</text>
+</g>
+<defs><marker id="k-ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-soft)"/></marker></defs>
+</svg></div>
+<h3 class="sub">🥞 レイヤーを下から重ねる</h3>
+<div class="canvas big"><svg viewBox="0 0 900 310" role="img" aria-label="レイヤーを下から順に重ねる"><defs><marker id="a3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-soft)"/></marker></defs>
+<polygon points="150,280 520,280 620,230 250,230" fill="#f3efe6" stroke="var(--line-strong)" stroke-width="1.5" opacity=".94"/><text x="650" y="262" class="k2">① 背景</text><polygon points="150,220 520,220 620,170 250,170" fill="rgba(255,255,255,.5)" stroke="var(--line-strong)" stroke-width="1.5" opacity=".94"/><path d="M190 214 C300 190 380 214 560 178" stroke="#8cc1ea" stroke-width="12" fill="none"/><text x="650" y="202" class="k2">② 川・海</text><polygon points="150,160 520,160 620,110 250,110" fill="rgba(255,255,255,.5)" stroke="var(--line-strong)" stroke-width="1.5" opacity=".94"/><path d="M200 156 L580 116" stroke="#f5b14a" stroke-width="8"/><path d="M330 158 L420 112" stroke="#f5b14a" stroke-width="6"/><text x="650" y="142" class="k2">③ 道路</text><polygon points="150,100 520,100 620,50 250,50" fill="rgba(255,255,255,.5)" stroke="var(--line-strong)" stroke-width="1.5" opacity=".94"/><text x="385" y="84" text-anchor="middle" class="k2">📍東京駅</text><text x="650" y="82" class="k2">④ 文字ラベル</text>
+<path d="M100 290 L100 70" stroke="var(--water)" stroke-width="4" marker-end="url(#a3)"/>
+<text x="88" y="190" text-anchor="end" class="k3">下から</text><text x="88" y="216" text-anchor="end" class="k3">順に</text>
+</svg></div>
+<h3 class="sub">✨ GPU の中の2つのプログラム（シェーダー）</h3>
+<div class="hf"><div class="hb g"><div class=e>📍</div><b>頂点シェーダー</b><span>三角形の角を、画面のどこに置く？</span></div><div class="ha" aria-hidden="true">→</div><div class="hb g"><div class=e>🖍️</div><b>フラグメントシェーダー</b><span>1ピクセルを何色にする？</span></div><div class="ha" aria-hidden="true">→</div><div class="hb x"><div class=e>🖼️</div><b>画面に出る</b></div></div></section><section id="labels"><div class="sh"><div class="no">07</div><h2>文字ラベルの席取りゲーム</h2></div><p class="lead2">文字が重なると読めないので、<b>席取りゲーム</b>をします。</p>
+<div class="canvas narrow"><svg viewBox="0 0 700 230" role="img" aria-label="ラベルの席取りゲーム">
+<rect x="40" y="40" width="200" height="56" rx="8" fill="var(--park-wash)" stroke="var(--park)" stroke-width="2"/>
+<text x="140" y="75" text-anchor="middle" class="ab">名古屋駅</text>
+<rect x="460" y="40" width="200" height="56" rx="8" fill="var(--park-wash)" stroke="var(--park)" stroke-width="2"/>
+<text x="560" y="75" text-anchor="middle" class="ab">名古屋城</text>
+<rect x="205" y="82" width="200" height="56" rx="8" fill="var(--label-wash)" stroke="var(--label)" stroke-width="2" stroke-dasharray="6 5"/>
+<text x="305" y="117" text-anchor="middle" class="ab">市役所</text>
+<text x="140" y="24" text-anchor="middle" class="al">先に座れた（表示）</text>
+<text x="560" y="24" text-anchor="middle" class="al">空いていた（表示）</text>
+<text x="305" y="164" text-anchor="middle" class="al">名古屋駅と重なったのでお休み</text>
+<text x="350" y="210" text-anchor="middle" class="ab">大事なものから順に席を取る</text>
+</svg></div>
+<div class="flow"><div class="fn start"><span class="who m">メイン</span><b>📋 ラベルを大事な順に並べる</b></div><div class="fa"><em>1つずつ</em></div><div class="fq"><div class="q">席は空いている？</div><div class="side"><i>はい</i><div class="fn end"><b>✅ 表示して席を取る</b></div></div></div><div class="fa"><em>いいえ</em></div><div class="fq"><div class="q">重なってもいい設定？</div><div class="side"><i>はい</i><div class="fn end"><b>✅ 重ねて表示</b></div></div></div><div class="fa"><em>いいえ</em></div><div class="fn stop"><b>💤 今回はお休み</b><span>地図が動いたら、またチャレンジ</span></div></div>
+<div class="shots"><figure class="shot"><img src="img/collision.jpg" alt="見えない「席」を見えるようにした地図" loading="lazy" width="900" height="560"><figcaption>見えない「席」を見えるようにした地図<small>showCollisionBoxes = true。青い枠が座れた席、赤い枠が座れなかったラベル</small></figcaption></figure></div>
+<div class="cards"><div class="cd m"><div class="nm"><span class=e>⏱️</span>1回2ミリ秒まで</div><span>終わらなければ次の画面に続きを回す</span></div><div class="cd m"><div class="nm"><span class=e>🌫️</span>ふわっと出し入れ</div><span>0.3秒かけてフェード</span></div></div></section><section id="camera"><div class="sh"><div class="no">08</div><h2>動かす・丸くする・立てる</h2></div><p class="lead2">指で動かす、地球を丸くする、山を立てる。</p>
+<h3 class="sub">👆 指の動きがカメラの動きになるまで</h3>
+<div class="hf"><div class="hb x"><div class=e>👆</div><b>指が動く</b><span>touchmove など</span></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>🧑‍💼</div><b>係が読みとる</b><span>パン・ズーム・回転</span></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>➕</div><b>まとめる</b><span>1フレーム分を足し算</span></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>🎥</div><b>カメラが動く</b></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>🛝</div><b>すべって止まる</b><span>慣性</span></div></div>
+<h3 class="sub">🌍 平らな地図 ⇄ 丸い地球</h3>
+<div class="canvas narrow"><svg viewBox="0 0 600 240" role="img" aria-label="平らな地図と地球儀"><defs><marker id="a5" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-soft)"/></marker></defs>
+<rect x="40" y="50" width="180" height="120" fill="#8cc1ea" stroke="var(--line-strong)"/>
+<path d="M70 80 h50 v30 h-20 v30 h-30z M140 70 h50 v60 h-30z" fill="#cfe8c9"/>
+<line x1="40" y1="90" x2="220" y2="90" stroke="#fff" stroke-opacity=".6"/><line x1="40" y1="130" x2="220" y2="130" stroke="#fff" stroke-opacity=".6"/>
+<line x1="100" y1="50" x2="100" y2="170" stroke="#fff" stroke-opacity=".6"/><line x1="160" y1="50" x2="160" y2="170" stroke="#fff" stroke-opacity=".6"/>
+<text x="130" y="205" text-anchor="middle" class="k3">ズーム12より寄ると</text><text x="130" y="232" text-anchor="middle" class="k2">平らな地図</text>
+<path d="M250 95 L340 95" stroke="var(--ink-soft)" stroke-width="3" marker-end="url(#a5)"/>
+<path d="M340 125 L250 125" stroke="var(--ink-soft)" stroke-width="3" marker-end="url(#a5)"/>
+<circle cx="460" cy="110" r="70" fill="#8cc1ea" stroke="var(--line-strong)"/>
+<path d="M420 70 q30 -10 50 10 q-10 30 -40 30z M470 120 q30 -5 40 20 q-20 25 -45 10z" fill="#cfe8c9"/>
+<ellipse cx="460" cy="110" rx="30" ry="70" fill="none" stroke="#fff" stroke-opacity=".6"/><line x1="390" y1="110" x2="530" y2="110" stroke="#fff" stroke-opacity=".6"/>
+<text x="460" y="205" text-anchor="middle" class="k3">ズーム11より引くと</text><text x="460" y="232" text-anchor="middle" class="k2">丸い地球</text>
+</svg></div>
+<div class="shots">
+<figure class="shot"><img src="img/globe.jpg" alt="地球儀モード" loading="lazy" width="900" height="560"><figcaption>地球儀モード<small>setProjection({type: &#x27;globe&#x27;})</small></figcaption></figure>
+<figure class="shot"><img src="img/buildings.jpg" alt="建物を立てる" loading="lazy" width="900" height="560"><figcaption>建物を立てる<small>fill-extrusion レイヤー。傾けると立体に見える</small></figcaption></figure>
+<figure class="shot"><img src="img/terrain.jpg" alt="山を立てる" loading="lazy" width="900" height="560"><figcaption>山を立てる<small>setTerrain。標高のタイルで地面を持ち上げ、地図をかぶせる（インスブルック）</small></figcaption></figure>
+</div></section><section id="data"><div class="sh"><div class="no">09</div><h2>データのつながり</h2></div><p class="lead2">2つのデータが、名前でつながっています。</p>
+<div class="canvas big"><svg viewBox="0 0 900 330" role="img" aria-label="スタイルとタイルのつながり"><defs><marker id="a4" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-soft)"/></marker></defs>
+<text x="210" y="28" text-anchor="middle" class="k2">📄 style.json（あなたが書く）</text>
+<rect x="20" y="42" width="380" height="270" rx="14" fill="#1f2a37"/>
+<text x="40" y="80" class="cd">"sources": {</text>
+<rect x="52" y="90" width="250" height="30" rx="6" fill="#2d5d8a"/>
+<text x="60" y="112" class="cd">  "osm": { タイルの URL }</text>
+<text x="40" y="146" class="cd">},</text>
+<text x="40" y="178" class="cd">"layers": [{ "id": "道路",</text>
+<rect x="52" y="190" width="200" height="30" rx="6" fill="#2d5d8a"/>
+<text x="60" y="212" class="cd">  "source": "osm",</text>
+<rect x="52" y="226" width="290" height="30" rx="6" fill="#2b6b45"/>
+<text x="60" y="248" class="cd">  "source-layer": "road",</text>
+<text x="60" y="284" class="cd">  "paint": { 色・太さ } }]</text>
+<text x="690" y="28" text-anchor="middle" class="k2">🧩 タイル（osm から届く）</text>
+<rect x="500" y="42" width="380" height="270" rx="14" fill="var(--surface)" stroke="var(--line-strong)" stroke-width="2"/>
+<rect x="520" y="90" width="340" height="56" rx="10" fill="var(--park-wash)" stroke="var(--park)" stroke-width="2.5"/>
+<text x="540" y="126" class="k2">🛣️ road　道路の線</text>
+<rect x="520" y="160" width="340" height="56" rx="10" fill="#f7f8fa" stroke="var(--line)"/>
+<text x="540" y="196" class="k2">🏠 building　建物の面</text>
+<rect x="520" y="230" width="340" height="56" rx="10" fill="#f7f8fa" stroke="var(--line)"/>
+<text x="540" y="266" class="k2">📍 place　地名の点</text>
+<path d="M304 105 C410 105 420 60 498 60" stroke="#4d8fd1" stroke-width="3" fill="none" marker-end="url(#a4)"/>
+<path d="M346 241 C430 241 440 118 516 118" stroke="var(--park)" stroke-width="3" fill="none" marker-end="url(#a4)"/>
+</svg></div>
+<div class="cards"><div class="cd m"><div class="nm"><span class=e>🔵</span>source</div><span>どのサーバーのタイル？</span></div><div class="cd w"><div class="nm"><span class=e>🟢</span>source-layer</div><span>タイルの中のどの層？</span></div><div class="cd g"><div class="nm"><span class=e>🎨</span>paint</div><span>どんな色・太さ？</span></div></div></section><section id="tools"><div class="sh"><div class="no">10</div><h2>使っている道具</h2></div><p class="lead2">ブラウザで動くのに必要な外部ライブラリは18個だけ。</p><div class="chipset"><div><b>✍️ 書く</b><div class="chips"><span>TypeScript</span><span>GLSL</span></div></div><div><b>🌐 ブラウザ</b><div class="chips"><span>WebGL2</span><span>Web Worker</span><span>fetch</span></div></div><div><b>🧩 データ</b><div class="chips"><span>vector-tile</span><span>MLT</span><span>geojson-vt</span></div></div><div><b>🔺 形と文字</b><div class="chips"><span>earcut</span><span>tiny-sdf</span><span>bidi-js</span></div></div><div><b>🧪 テスト</b><div class="chips"><span>Vitest</span><span>Puppeteer</span><span>ESLint</span></div></div><div><b>📦 配る</b><div class="chips"><span>rolldown</span><span>npm</span><span>GitHub Actions</span></div></div></div></section><section id="guards"><div class="sh"><div class="no">11</div><h2>ミスを防ぐしくみ</h2></div><p class="lead2">直しを送るたびに、ロボットが全部チェックします。</p>
+<div class="nums">
+<div><b>1,723</b><span>🖼️ 描画テスト<br>正解の画像と見比べる</span></div>
+<div><b>219</b><span>🧪 ユニットテスト<br>のファイル</span></div>
+<div><b>136</b><span>🔍 検索テスト<br>クリックで正しく探せる？</span></div>
+<div><b>14</b><span>⏱️ 速さの測定</span></div>
+</div>
+<h3 class="sub">🤖 チェックの順番</h3>
+<div class="hf"><div class="hb x"><div class=e>📮</div><b>直しを送る</b><span>プルリクエスト</span></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>📏</div><b>書き方・型</b><span>ESLint・tsgo</span></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>🧪</div><b>テスト</b><span>ユニット・描画・ビルド</span></div><div class="ha" aria-hidden="true">→</div><div class="hb m"><div class=e>👀</div><b>人が読む</b><span>レビュー</span></div><div class="ha" aria-hidden="true">→</div><div class="hb w"><div class=e>✅</div><b>取りこむ</b><span>マージ</span></div></div>
+<div class="cards"><div class="cd x"><div class="nm"><span class=e>✋</span>見なくなったタイルは取り消す</div><span>通信がつまらないように</span></div><div class="cd x"><div class="nm"><span class=e>🗑️</span>古いタイルから捨てる</div><span>メモリを使いすぎないように</span></div><div class="cd x"><div class="nm"><span class=e>🔍</span>スタイルの書きまちがいを知らせる</div><span>地図が真っ白にならないように</span></div><div class="cd x"><div class="nm"><span class=e>🔁</span>GPU が戻ったら描き直す</div><span>ほかのアプリに GPU を取られても</span></div></div></section><section id="glossary"><div class="sh"><div class="no">12</div><h2>用語集</h2></div><dl class="gloss"><dt>ライブラリ</dt><dd>だれかが作った便利な関数の集まり</dd><dt>タイル</dt><dd>地図を正方形に切った1枚</dd><dt>ベクタータイル</dt><dd>点・線・面の座標が入ったタイル</dd><dt>スタイル</dt><dd>色や太さの決まりを書いた JSON</dd><dt>レイヤー</dt><dd>重ねて描く1枚1枚の層</dd><dt>メインスレッド</dt><dd>画面と操作を受け持つ、表の係</dd><dt>Web Worker</dt><dd>同時に計算できる、裏方</dd><dt>GPU</dt><dd>三角形をたくさん同時に塗れる装置</dd><dt>シェーダー</dt><dd>GPU の中で動く小さなプログラム</dd><dt>フレーム</dt><dd>画面1回分の絵。1秒に最大60回</dd><dt>キャッシュ</dt><dd>作ったものを取っておいて使い回すこと</dd><dt>イベント</dt><dd>「クリックされた」などのお知らせ</dd></dl></section>
+<footer class="foot">非公式の解説資料です。MapLibre とは関係ありません。数字は maplibre-gl-js 6.13.0（コミット 4a9ee5bf7）で数えたものです。ソースコード：<a href="https://github.com/maplibre/maplibre-gl-js">github.com/maplibre/maplibre-gl-js</a></footer>
+</main>
+</div>
+<script>
+(() => {
+  const links = [...document.querySelectorAll('.toc a')];
+  const secs = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue;
+      for (const a of links) a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id);
+    }
+  }, {rootMargin: '-30% 0px -60% 0px'});
+  for (const s of secs) io.observe(s);
+  document.addEventListener('click', async (e) => {
+    const b = e.target.closest('.p[data-copy]');
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.copy); }
+    catch { const s = getSelection(); const r = document.createRange(); r.selectNodeContents(b); s.removeAllRanges(); s.addRange(r); }
+    b.classList.add('done');
+    setTimeout(() => b.classList.remove('done'), 900);
+  });
+})();
+</script>
+</body>
+</html>
