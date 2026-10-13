@@ -227,9 +227,9 @@ figure.shot figcaption small { display: block; font-weight: 400; color: var(--in
 .cards .cd .p { margin-left: -4px; }
 .cards .cd ul { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 0; }
 
-/* 表は枠の中でスクロールし、見出しの行を固定する */
-.tbl { max-height: 72vh; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
-.tbl th { position: sticky; top: 0; z-index: 2; background: var(--surface); box-shadow: inset 0 -2px 0 var(--line-strong); }
+/* 表の見出しは画面の上端（タブの下）に張りつく。位置は SCRIPT の pinHeads が動かす */
+.tbl { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.tbl th { position: relative; z-index: 2; background: var(--surface); box-shadow: inset 0 -2px 0 var(--line-strong); will-change: transform; }
 @media (max-width: 640px) {
   .hf { flex-direction: column; }
   .hf .hb { flex: none; justify-items: start; text-align: left; grid-template-columns: auto 1fr; column-gap: 12px; }
@@ -397,13 +397,12 @@ ol.cflow li:not(:last-child)::after { content: "↓"; position: absolute; left: 
 td { font-size: 14.5px; }
 .api p { font-size: 14px; } .api .ms code { font-size: 12.5px; }
 
-.tbl.lk { max-height: 80vh; }
 table.lookup { min-width: 1080px; table-layout: fixed; }
 table.lookup th:nth-child(1) { width: 26%; }
 table.lookup th.h-m { color: var(--water); } table.lookup th.h-w { color: var(--park); } table.lookup th.h-g { color: var(--label); }
 table.lookup td { padding: 12px; }
 table.lookup tr[hidden] { display: none; }
-tr.grow td { position: sticky; top: 38px; z-index: 1; background: var(--water-wash); color: var(--water); font-weight: 700; font-size: 14px; padding: 6px 12px; }
+tr.grow td { position: relative; z-index: 1; will-change: transform; background: var(--water-wash); color: var(--water); font-weight: 700; font-size: 14px; padding: 6px 12px; }
 td.fname b { display: block; font-size: 16px; }
 td.fname code.fapi { display: block; font-size: 12.5px; background: none; padding: 0; color: var(--ink-soft); margin: 2px 0 6px; overflow-wrap: anywhere; }
 td.fname .fd { font-size: 14px; }
@@ -425,8 +424,7 @@ ul.fl li span { font-size: 13px; color: var(--ink-soft); line-height: 1.55; }
 .mrow .hf .hb b { font-family: var(--f-mono); }
 .mrow .hf .hb span { font-size: 14px; }
 .rarrow { text-align: center; color: var(--ink-soft); font-weight: 700; font-size: 15px; padding: 8px 0; }
-.lanes-wrap { max-height: 82vh; overflow: auto; border-radius: 12px; }
-.lane-h { position: sticky; top: 0; z-index: 3; background: var(--surface); border-bottom: 2px solid var(--line); border-radius: 12px 12px 0 0; font-size: 14.5px; }
+.lane-h { position: relative; z-index: 3; will-change: transform; background: var(--surface); border-bottom: 2px solid var(--line); border-radius: 12px 12px 0 0; font-size: 14.5px; }
 .lane-h.m { background: color-mix(in srgb, var(--water-wash) 55%, var(--surface)); }
 .lane-h.w { background: color-mix(in srgb, var(--park-wash) 55%, var(--surface)); }
 .lane-h.g { background: color-mix(in srgb, var(--label-wash) 55%, var(--surface)); }
@@ -549,6 +547,47 @@ table.msg td { font-size: 15px; } table.msg code { font-size: 13.5px; }
     b.classList.add('done');
     setTimeout(() => b.classList.remove('done'), 900);
   });
+})();
+(() => {
+  /* 表の見出し・グループ行・レーン見出しを、画面上端（タブの下）までスクロールしたら止める。
+     横スクロールの枠の中では position: sticky が縦に効かないので、transform でずらす。 */
+  const ty = new WeakMap();
+  const shown = (el) => el.getClientRects().length > 0;
+  function place(el, top, endBottom) {
+    const cur = ty.get(el) || 0;
+    const r = el.getBoundingClientRect();
+    const natTop = r.top - cur;
+    const max = Math.max(0, endBottom - (natTop + r.height));
+    const y = Math.min(Math.max(0, top - natTop), max);
+    if (y !== cur) { el.style.transform = y ? `translateY(${y}px)` : ''; ty.set(el, y); }
+  }
+  function update() {
+    const bar = document.querySelector('.top');
+    const top0 = bar ? bar.getBoundingClientRect().height : 0;
+    for (const box of document.querySelectorAll('.tbl')) {
+      const bottom = box.getBoundingClientRect().bottom;
+      const ths = [...box.querySelectorAll('thead th')];
+      for (const th of ths) place(th, top0, bottom);
+      const headH = ths.length ? ths[0].getBoundingClientRect().height : 0;
+      for (const g of box.querySelectorAll('tr.grow')) {
+        if (!shown(g)) continue;
+        let last = g;
+        for (let n = g.nextElementSibling; n && !n.classList.contains('grow'); n = n.nextElementSibling) if (shown(n)) last = n;
+        const end = last === g ? 0 : last.getBoundingClientRect().bottom;
+        for (const td of g.children) place(td, top0 + headH, end);
+      }
+    }
+    for (const box of document.querySelectorAll('.lanes-wrap')) {
+      const bottom = box.getBoundingClientRect().bottom;
+      for (const h of box.querySelectorAll('.lane-h')) place(h, top0, bottom);
+    }
+  }
+  let queued = false;
+  const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; update(); }); } };
+  addEventListener('scroll', schedule, {passive: true});
+  addEventListener('resize', schedule);
+  document.addEventListener('input', schedule);
+  update();
 })();
 
 (() => {

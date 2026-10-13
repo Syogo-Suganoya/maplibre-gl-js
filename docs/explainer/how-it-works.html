@@ -227,9 +227,9 @@ figure.shot figcaption small { display: block; font-weight: 400; color: var(--in
 .cards .cd .p { margin-left: -4px; }
 .cards .cd ul { margin: 4px 0 0; padding: 0; list-style: none; display: grid; gap: 0; }
 
-/* 表は枠の中でスクロールし、見出しの行を固定する */
-.tbl { max-height: 72vh; overflow: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
-.tbl th { position: sticky; top: 0; z-index: 2; background: var(--surface); box-shadow: inset 0 -2px 0 var(--line-strong); }
+/* 表の見出しは画面の上端（タブの下）に張りつく。位置は SCRIPT の pinHeads が動かす */
+.tbl { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; }
+.tbl th { position: relative; z-index: 2; background: var(--surface); box-shadow: inset 0 -2px 0 var(--line-strong); will-change: transform; }
 @media (max-width: 640px) {
   .hf { flex-direction: column; }
   .hf .hb { flex: none; justify-items: start; text-align: left; grid-template-columns: auto 1fr; column-gap: 12px; }
@@ -541,6 +541,47 @@ dl.gloss dt { font-size: 17px; } dl.gloss dd { font-size: 16px; }
     b.classList.add('done');
     setTimeout(() => b.classList.remove('done'), 900);
   });
+})();
+(() => {
+  /* 表の見出し・グループ行・レーン見出しを、画面上端（タブの下）までスクロールしたら止める。
+     横スクロールの枠の中では position: sticky が縦に効かないので、transform でずらす。 */
+  const ty = new WeakMap();
+  const shown = (el) => el.getClientRects().length > 0;
+  function place(el, top, endBottom) {
+    const cur = ty.get(el) || 0;
+    const r = el.getBoundingClientRect();
+    const natTop = r.top - cur;
+    const max = Math.max(0, endBottom - (natTop + r.height));
+    const y = Math.min(Math.max(0, top - natTop), max);
+    if (y !== cur) { el.style.transform = y ? `translateY(${y}px)` : ''; ty.set(el, y); }
+  }
+  function update() {
+    const bar = document.querySelector('.top');
+    const top0 = bar ? bar.getBoundingClientRect().height : 0;
+    for (const box of document.querySelectorAll('.tbl')) {
+      const bottom = box.getBoundingClientRect().bottom;
+      const ths = [...box.querySelectorAll('thead th')];
+      for (const th of ths) place(th, top0, bottom);
+      const headH = ths.length ? ths[0].getBoundingClientRect().height : 0;
+      for (const g of box.querySelectorAll('tr.grow')) {
+        if (!shown(g)) continue;
+        let last = g;
+        for (let n = g.nextElementSibling; n && !n.classList.contains('grow'); n = n.nextElementSibling) if (shown(n)) last = n;
+        const end = last === g ? 0 : last.getBoundingClientRect().bottom;
+        for (const td of g.children) place(td, top0 + headH, end);
+      }
+    }
+    for (const box of document.querySelectorAll('.lanes-wrap')) {
+      const bottom = box.getBoundingClientRect().bottom;
+      for (const h of box.querySelectorAll('.lane-h')) place(h, top0, bottom);
+    }
+  }
+  let queued = false;
+  const schedule = () => { if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; update(); }); } };
+  addEventListener('scroll', schedule, {passive: true});
+  addEventListener('resize', schedule);
+  document.addEventListener('input', schedule);
+  update();
 })();
 </script>
 </body>
