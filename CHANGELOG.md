@@ -3,6 +3,7 @@
 - _...Add new stuff here..._
 
 ### 🐞 Bug fixes
+- Fix `load` and `idle` not firing when a tile request fails with a network error after the last frame ([#8716](https://github.com/maplibre/maplibre-gl-js/issues/8716))
 - _...Add new stuff here..._
 
 ## 6.15.0
