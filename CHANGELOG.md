@@ -3,6 +3,7 @@
 - _...Add new stuff here..._
 
 ### 🐞 Bug fixes
+- Fix `icon-text-fit` padding growing with the text length when `icon-size` is not 1 ([#989](https://github.com/maplibre/maplibre-gl-js/issues/989))
 - _...Add new stuff here..._
 
 ## 6.15.0
