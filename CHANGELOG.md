@@ -3,6 +3,7 @@
 - _...Add new stuff here..._
 
 ### 🐞 Bug fixes
+- Fix line labels with `text-offset` drawn reversed or collapsed where the line turns straight back on itself, since 3.0.0 ([#5179](https://github.com/maplibre/maplibre-gl-js/issues/5179))
 - _...Add new stuff here..._
 
 ## 6.15.0
