@@ -258,6 +258,8 @@ export class GeoJSONWorkerSource implements WorkerSource {
     async loadAndProcessGeoJSON(params: LoadGeoJSONParameters, abortController: AbortController): Promise<GeoJSON.GeoJSON> {
         if (params.request) {
             params.data = (await getJSON<GeoJSON.GeoJSON>(params.request, abortController)).data;
+        } else {
+            propertiesAsJSON(params.data, params.dataDiff);
         }
 
         this._crsHelper = params.crs ? createWorkerCRSHelper(params.crs) : undefined;
@@ -342,6 +344,30 @@ export class GeoJSONWorkerSource implements WorkerSource {
  * Builds the geojson-vt index of a GeoJSON source's data.
  * @param worldCoordinates - whether the data is in the registered projection's world coordinates instead of lng/lat
  */
+/**
+ * Replaces every feature property that is not a string, number, boolean or null with what JSON makes of it, so a
+ * `Date` becomes its ISO string.
+ *
+ * Tiles carry such values as JSON, and features read back from them, as a query returns, hold the result. The worker
+ * lays tiles out from the features as given, so without this a style would see the `Date` itself and a label would show
+ * it JSON-quoted. GeoJSON fetched from a URL is JSON already and needs none of this.
+ */
+function propertiesAsJSON(data: GeoJSON.GeoJSON | undefined, diff: GeoJSONSourceDiff | undefined): void {
+    const features = data?.type === 'FeatureCollection' ? data.features : data?.type === 'Feature' ? [data] : [];
+    for (const feature of [...features, ...(diff?.add ?? [])]) {
+        const properties = feature.properties;
+        if (!properties) continue;
+        for (const key in properties) properties[key] = valueAsJSON(properties[key]);
+    }
+    for (const update of diff?.update ?? []) {
+        for (const property of update.addOrUpdateProperties ?? []) property.value = valueAsJSON(property.value);
+    }
+}
+
+function valueAsJSON(value: unknown): unknown {
+    return value !== null && typeof value === 'object' ? JSON.parse(JSON.stringify(value)) : value;
+}
+
 export function createGeoJSONIndex(data: GeoJSON.GeoJSON, params: LoadGeoJSONParameters, worldCoordinates: boolean): GeoJSONVT {
     const options = extend(params.geojsonVtOptions || {}, {
         updateable: true,
