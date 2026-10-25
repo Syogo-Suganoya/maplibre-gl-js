@@ -658,22 +658,31 @@ describe('loadData', () => {
         expect(result.data).toBeUndefined();
     });
 
-    test('serializes a Date property the same way whether it came with the data or with a diff', async () => {
+    test('lays out and serializes a Date property as its ISO string, whether it came with the data or with a diff', async () => {
         const worker = new GeoJSONWorkerSource(actor, layerIndex, []);
         const date = new Date('2025-07-16T10:00:00.000Z');
+        const iso = '2025-07-16T10:00:00.000Z';
 
         await worker.loadData({type: 'geojson', source: 'source1', geojsonVtOptions: {}, data: {
             type: 'FeatureCollection',
-            features: [{type: 'Feature', id: 1, geometry: {type: 'Point', coordinates: [0, 0]}, properties: {date}}]
+            features: [
+                {type: 'Feature', id: 1, geometry: {type: 'Point', coordinates: [0, 0]}, properties: {date}},
+                {type: 'Feature', id: 3, geometry: {type: 'Point', coordinates: [-10, -10]}, properties: {}}
+            ]
         }});
         await worker.loadData({type: 'geojson', source: 'source1', dataDiff: {
-            add: [{type: 'Feature', id: 2, geometry: {type: 'Point', coordinates: [10, 10]}, properties: {date}}]
+            add: [{type: 'Feature', id: 2, geometry: {type: 'Point', coordinates: [10, 10]}, properties: {date}}],
+            update: [{id: 3, addOrUpdateProperties: [{key: 'date', value: date}]}]
         }});
 
-        const {rawData} = worker.loadVectorTile({tileID: {canonical: {x: 0, y: 0, z: 0}}} as WorkerTileParameters);
-        const layer = new VectorTile(new PbfReader(new Uint8Array(rawData))).layers[GEOJSON_TILE_LAYER_NAME];
-        const dates = [0, 1].map(i => new GeoJSONFeature(layer.feature(i), 0, 0, 0, undefined, mercatorWorldCoordinateHelper).properties.date);
-        expect(dates).toEqual(['2025-07-16T10:00:00.000Z', '2025-07-16T10:00:00.000Z']);
+        const {vectorTile, rawData} = worker.loadVectorTile({tileID: {canonical: {x: 0, y: 0, z: 0}}} as WorkerTileParameters);
+        const laidOut = vectorTile.layers[GEOJSON_TILE_LAYER_NAME];
+        const encoded = new VectorTile(new PbfReader(new Uint8Array(rawData))).layers[GEOJSON_TILE_LAYER_NAME];
+        for (let i = 0; i < laidOut.length; i++) {
+            expect(laidOut.feature(i).properties.date).toBe(iso);
+            expect(new GeoJSONFeature(encoded.feature(i), 0, 0, 0, undefined, mercatorWorldCoordinateHelper).properties.date).toBe(iso);
+        }
+        expect(laidOut).toHaveLength(3);
     });
 
     test('loadData should reject as first call with no data', async () => {

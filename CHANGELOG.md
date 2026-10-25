@@ -3,6 +3,7 @@
 - _...Add new stuff here..._
 
 ### 🐞 Bug fixes
+- Fix labels showing a `Date` (or another non-JSON value) in GeoJSON properties JSON-quoted, while queries return the plain string ([#6146](https://github.com/maplibre/maplibre-gl-js/issues/6146))
 - _...Add new stuff here..._
 
 ## 6.15.0
