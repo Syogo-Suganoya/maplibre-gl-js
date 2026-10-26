@@ -845,12 +845,34 @@ a.maplibregl-ctrl-logo.maplibregl-compact {
     100% { transform: scale(1); opacity: 0; }
 }
 
+.maplibregl-user-location-heading {
+    display: none;
+    position: absolute;
+    left: 50%;
+    bottom: 100%;
+    width: 0;
+    height: 0;
+    margin-left: -6px;
+    margin-bottom: 3px;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 9px solid #1da1f2;
+}
+
+.maplibregl-user-location-show-heading .maplibregl-user-location-heading {
+    display: block;
+}
+
 .maplibregl-user-location-dot-stale {
     background-color: #aaa;
 }
 
 .maplibregl-user-location-dot-stale::after {
     display: none;
+}
+
+.maplibregl-user-location-dot-stale .maplibregl-user-location-heading {
+    border-bottom-color: #aaa;
 }
 
 .maplibregl-user-location-accuracy-circle {
