@@ -236,6 +236,15 @@ img-src data: blob: 'self' ;
 
 A page with an opaque origin, like one opened from a file or in a sandboxed iframe, downloads the worker and starts it from a `data:` URL, so it also needs `data:` in `worker-src` and the worker's host in `connect-src`, or `blob:` when `setWorkerUrl` is given a `blob:` URL.
 
+On a page that enforces [Trusted Types](https://developer.mozilla.org/en-US/docs/Web/API/Trusted_Types_API) with `require-trusted-types-for 'script'`, MapLibre starts its worker and parses attribution markup, which it then sanitizes, through a policy named `maplibre-gl`. If the CSP also restricts policy names with `trusted-types`, add that name:
+
+```
+require-trusted-types-for 'script' ;
+trusted-types maplibre-gl ;
+```
+
+`Popup.setHTML` inserts the markup it is given as it is, without the library's policy, so on such a page build popup content with `Popup.setDOMContent` instead.
+
 ## MapLibre CSS
 
 The CSS referenced in the Quickstart is used to style DOM elements created by MapLibre code. Without the CSS, elements like Popups and Markers won't work.
