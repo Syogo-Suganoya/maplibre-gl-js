@@ -1,5 +1,6 @@
 ## main
 ### ✨ Features and improvements
+- Add `showUserHeading` to `GeolocateControl` to draw an arrow on the user location dot in the direction of travel ([#3086](https://github.com/maplibre/maplibre-gl-js/issues/3086))
 - _...Add new stuff here..._
 
 ### 🐞 Bug fixes

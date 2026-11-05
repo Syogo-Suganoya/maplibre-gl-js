@@ -550,6 +550,49 @@ describe('GeolocateControl with no options', () => {
         expect(geolocate._userLocationDotMarker._element.classList).toContain('maplibregl-user-location-dot-stale');
     });
 
+    test('showUserHeading points an arrow on the dot in the direction of travel', async () => {
+        const geolocate = new GeolocateControl({
+            trackUserLocation: true,
+            showUserHeading: true,
+            fitBoundsOptions: {duration: 0}
+        });
+        map.addControl(geolocate);
+        await sleep(0);
+        const dot = geolocate._userLocationDotMarker.getElement();
+        expect(dot.querySelector('.maplibregl-user-location-heading')).toBeTruthy();
+
+        const firstMoveEnd = map.once('moveend');
+        geolocate._geolocateButton.dispatchEvent(new window.Event('click'));
+        geolocation.send({latitude: 10, longitude: 20, accuracy: 30, heading: 90});
+        await firstMoveEnd;
+        expect(dot.classList).toContain('maplibregl-user-location-show-heading');
+        expect(geolocate._userLocationDotMarker.getRotation()).toBe(90);
+        expect(geolocate._userLocationDotMarker.getRotationAlignment()).toBe('map');
+
+        const secondMoveEnd = map.once('moveend');
+        geolocation.change({latitude: 11, longitude: 20, accuracy: 30, heading: NaN});
+        await secondMoveEnd;
+        expect(dot.classList).not.toContain('maplibregl-user-location-show-heading');
+    });
+
+    test('does not draw a heading arrow without showUserHeading', async () => {
+        const geolocate = new GeolocateControl({
+            trackUserLocation: true,
+            fitBoundsOptions: {duration: 0}
+        });
+        map.addControl(geolocate);
+        await sleep(0);
+        const dot = geolocate._userLocationDotMarker.getElement();
+
+        const moveEnd = map.once('moveend');
+        geolocate._geolocateButton.dispatchEvent(new window.Event('click'));
+        geolocation.send({latitude: 10, longitude: 20, accuracy: 30, heading: 90});
+        await moveEnd;
+        expect(dot.querySelector('.maplibregl-user-location-heading')).toBeNull();
+        expect(dot.classList).not.toContain('maplibregl-user-location-show-heading');
+        expect(geolocate._userLocationDotMarker.getRotation()).toBe(0);
+    });
+
     /**
      * @deprecated 'trackuserlocationend' event will not be thrown in this situation later,
      * 'userlocationlostfocus event' test added instead.
